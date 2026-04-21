@@ -1,0 +1,39 @@
+name: Build dd_stats.desc
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_ref:
+        description: "datadog-agent git ref (tag/branch/commit)"
+        required: false
+        default: "main"
+
+jobs:
+  build-descriptor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: DataDog/datadog-agent
+          ref: ${{ github.event.inputs.agent_ref }}
+          sparse-checkout: pkg/proto
+          sparse-checkout-cone-mode: true
+
+      - name: Install protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Compile dd_stats.desc
+        run: |
+          protoc \
+            --descriptor_set_out=dd_stats.desc \
+            --include_imports \
+            -I pkg/proto \
+            pkg/proto/datadog/trace/stats.proto
+          echo "descriptor size: $(wc -c < dd_stats.desc) bytes"
+          echo "protoc version: $(protoc --version)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dd_stats-${{ github.event.inputs.agent_ref }}
+          path: dd_stats.desc
+          retention-days: 90
